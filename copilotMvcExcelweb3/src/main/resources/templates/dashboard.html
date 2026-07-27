@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Token Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-4">
+    <h1>Token Dashboard</h1>
+
+    <div th:if="${message}" class="alert alert-info" th:text="${message}"></div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Registered Tokens & Members</span>
+                    <button type="button" id="addRowBtn" class="btn btn-sm btn-success">+ Add Row</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-hover" id="tokensTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th style="width: 5%">ID</th>
+                                <th style="width: 18%">Member Name</th>
+                                <th style="width: 35%">Token Value</th>
+                                <th style="width: 8%">Total</th>
+                                <th style="width: 8%">Return</th>
+                                <th style="width: 26%">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody id="tokensBody">
+                            <tr th:each="t : ${tokens}" class="token-row" th:attr="data-id=${t.id}">
+                                <td class="text-muted" th:text="${t.id}"></td>
+                                <td>
+                                    <span class="row-name-display" th:text="${t.name}"></span>
+                                </td>
+                                <td>
+                                    <span class="row-token-display" th:text="${t.tokenValue}"></span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="token-count badge bg-info">0</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="detect-count badge bg-secondary">0</span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-success add-token-btn">Add</button>
+                                        <button type="button" class="btn btn-outline-secondary detect-row-btn">Detect</button>
+                                        <form th:action="@{/dashboard/delete/{id}(id=${t.id})}" method="post" style="display:inline;" onsubmit="return confirm('Delete token: ' + [[${t.name}]] + '?')">
+                                            <button type="submit" class="btn btn-danger">Delete</button>
+                                        </form>
+                                    </div>
+                                    <div class="mt-1" style="font-size:0.75rem;" aria-live="polite">
+                                       <span class="add-input-container"></span>
+                                        <span class="detect-input-container"></span>
+                                        <span class="action-result text-muted"></span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr th:if="${tokens.size()} == 0" id="emptyRow">
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"></i> No tokens registered yet. Add one using the form or add a row below.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <hr class="my-3">
+                    <div class="d-flex gap-2">
+                        <button type="button" id="addNewTokenBtn" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus"></i> Add New Token
+                        </button>
+                        <button type="button" id="refreshBtn" class="btn btn-secondary btn-sm">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Add empty row to table
+    document.getElementById('addRowBtn').addEventListener('click', function () {
+        const tbody = document.getElementById('tokensBody');
+        const emptyRow = document.getElementById('emptyRow');
+        if (emptyRow) emptyRow.remove();
+
+        const newRow = document.createElement('tr');
+        newRow.className = 'table-warning';
+        newRow.innerHTML = `
+            <td class="text-muted">-</td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="Member name" maxlength="50" /></td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="Token value" maxlength="255" /></td>
+            <td class="text-center"><span class="badge bg-info">0</span></td>
+            <td class="text-center"><span class="badge bg-secondary">0</span></td>
+            <td>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-success save-row-btn">Save</button>
+                    <button type="button" class="btn btn-secondary cancel-row-btn">Cancel</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(newRow);
+
+        // Save button handler
+        newRow.querySelector('.save-row-btn').addEventListener('click', function () {
+            const name = newRow.querySelector('input[placeholder="Member name"]').value.trim();
+            const token = newRow.querySelector('input[placeholder="Token value"]').value.trim();
+            if (!name || !token) {
+                alert('Please fill in both Name and Token Value');
+                return;
+            }
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/dashboard/add';
+            form.innerHTML = `<input type="hidden" name="name" value="${escapeHtml(name)}" />
+                             <input type="hidden" name="tokenValue" value="${escapeHtml(token)}" />`;
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        // Cancel button handler
+        newRow.querySelector('.cancel-row-btn').addEventListener('click', function () {
+            newRow.remove();
+            if (document.getElementById('tokensBody').children.length === 0) {
+                document.getElementById('tokensBody').innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No tokens registered yet. Add one using the form or add a row below.</td></tr>';
+            }
+        });
+
+        newRow.querySelector('input[placeholder="Member name"]').focus();
+    });
+
+    // Refresh button
+    document.getElementById('refreshBtn').addEventListener('click', function () {
+        location.reload();
+    });
+
+    // Add New Token button - opens "+ Add Row" for new entry
+    document.getElementById('addNewTokenBtn').addEventListener('click', function () {
+        document.getElementById('addRowBtn').click();
+    });
+
+    // Utility function to escape HTML
+    function escapeHtml(text) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Add hover effect to table rows
+    document.querySelectorAll('.token-row').forEach(row => {
+        row.addEventListener('mouseenter', function () {
+            this.classList.add('table-active');
+        });
+        row.addEventListener('mouseleave', function () {
+            this.classList.remove('table-active');
+        });
+    });
+
+    // Per-row button handlers
+    function attachPerRowHandlers() {
+        document.querySelectorAll('.detect-row-btn').forEach(btn => {
+            btn.removeEventListener('click', detectRowHandler);
+            btn.addEventListener('click', detectRowHandler);
+        });
+        document.querySelectorAll('.add-token-btn').forEach(btn => {
+            btn.removeEventListener('click', addRowHandler);
+            btn.addEventListener('click', addRowHandler);
+        });
+    }
+
+    function detectRowHandler(e) {
+        const btn = e.currentTarget;
+        const row = btn.closest('tr');
+        const inputContainer = row ? row.querySelector('.detect-input-container') : null;
+        const resultEl = row ? row.querySelector('.action-result') : null;
+        if (!inputContainer) return;
+        inputContainer.innerHTML = `
+            <div class="input-group input-group-sm mt-1">
+                <input type="text" class="form-control detect-token-input" placeholder="Enter token to detect" />
+                <button class="btn btn-outline-secondary detect-submit" type="button">Check</button>
+                <button class="btn btn-outline-secondary detect-cancel" type="button">✕</button>
+            </div>
+        `;
+        const input = inputContainer.querySelector('.detect-token-input');
+        const submitBtn = inputContainer.querySelector('.detect-submit');
+        const cancelBtn = inputContainer.querySelector('.detect-cancel');
+        input.focus();
+        submitBtn.addEventListener('click', function() {
+            const token = input.value.trim();
+            if (!token) {
+                if (resultEl) resultEl.textContent = 'Please enter a token';
+                return;
+            }
+            // Parse detect input as numeric (sum values)
+            const v = parseNumber(token);
+            if (Number.isNaN(v)) {
+                if (resultEl) resultEl.textContent = 'Please enter a numeric value';
+                return;
+            }
+            fetch('/dashboard/detect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                body: new URLSearchParams({ tokenValue: token })
+            }).then(r => r.json()).then(json => {
+                const exists = json.exists;
+                if (resultEl) {
+                    resultEl.innerHTML = exists ? '<span class="text-success">✓ Exists</span>' : '<span class="text-warning">✗ Not found</span>';
+                }
+                // Accumulate return sum and persist, and update total
+                const returnCountEl = row.querySelector('.detect-count');
+                const totalEl = row.querySelector('.token-count');
+                if (returnCountEl) {
+                    let returnSum = parseFloat(returnCountEl.textContent) || 0;
+                    returnSum += v;
+                    returnCountEl.textContent = Number.isInteger(returnSum) ? String(returnSum) : returnSum.toFixed(2);
+                    const id = row.getAttribute('data-id');
+                    if (id) {
+                        let stored = parseFloat(localStorage.getItem('returnSum_' + id)) || 0;
+                        stored += v;
+                        localStorage.setItem('returnSum_' + id, String(stored));
+                        // Update total = base + addSum + returnSum
+                        const tokenText = (row.querySelector('.row-token-display') || {}).textContent || '';
+                        const base = parseNumber(tokenText) || 0;
+                        const addSum = parseFloat(localStorage.getItem('addSum_' + id)) || 0;
+                        const newTotal = base + addSum + returnSum;
+                        if (totalEl) totalEl.textContent = Number.isInteger(newTotal) ? String(newTotal) : newTotal.toFixed(2);
+                    }
+                }
+                inputContainer.innerHTML = '';
+            }).catch(err => {
+                console.error(err);
+                if (resultEl) resultEl.innerHTML = '<span class="text-danger">Error</span>';
+                inputContainer.innerHTML = '';
+            });
+        });
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') submitBtn.click();
+        });
+        cancelBtn.addEventListener('click', function() {
+            inputContainer.innerHTML = '';
+            if (resultEl) resultEl.textContent = '';
+        });
+    }
+
+    function addRowHandler(e) {
+        const btn = e.currentTarget;
+        const row = btn.closest('tr');
+        if (!row) return;
+        const inputContainer = row ? row.querySelector('.add-input-container') : null;
+        const resultEl = row ? row.querySelector('.action-result') : null;
+        const tokenCountEl = row ? row.querySelector('.token-count') : null;
+        if (!inputContainer) return;
+        inputContainer.innerHTML = `
+            <div class="input-group input-group-sm mt-1">
+                <input type="text" class="form-control add-token-input" placeholder="Enter new token" />
+                <button class="btn btn-outline-success add-submit" type="button">Add</button>
+                <button class="btn btn-outline-secondary add-cancel" type="button">✕</button>
+            </div>
+        `;
+        const input = inputContainer.querySelector('.add-token-input');
+        const submitBtn = inputContainer.querySelector('.add-submit');
+        const cancelBtn = inputContainer.querySelector('.add-cancel');
+        input.focus();
+        submitBtn.addEventListener('click', function() {
+            const token = input.value.trim();
+            if (!token) {
+                if (resultEl) resultEl.textContent = 'Please enter a token';
+                return;
+            }
+            // Accumulate the numeric token value added (sum) and persist
+            const v = parseFloat(token.replace(/,/g, ''));
+            if (Number.isNaN(v)) {
+                if (resultEl) resultEl.textContent = 'Please enter a numeric token value';
+                return;
+            }
+            if (!tokenCountEl) {
+                if (resultEl) resultEl.textContent = 'Internal error: total cell missing';
+                return;
+            }
+            let count = parseFloat(tokenCountEl.textContent) || 0;
+            count += v;
+            tokenCountEl.textContent = Number.isInteger(count) ? String(count) : count.toFixed(2);
+            // persist per-row add sum
+            const id = row.getAttribute('data-id');
+            if (id) {
+                let stored = parseFloat(localStorage.getItem('addSum_' + id)) || 0;
+                stored += v;
+                localStorage.setItem('addSum_' + id, String(stored));
+            }
+            if (resultEl) resultEl.innerHTML = '<span class="text-success">✓ Added</span>';
+            inputContainer.innerHTML = '';
+        });
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') submitBtn.click();
+        });
+        cancelBtn.addEventListener('click', function() {
+            inputContainer.innerHTML = '';
+            if (resultEl) resultEl.textContent = '';
+        });
+    }
+
+    // Helper: parse numeric token strings (commas allowed)
+    function parseNumber(s) {
+        if (!s) return NaN;
+        const n = parseFloat(String(s).replace(/,/g, ''));
+        return Number.isFinite(n) ? n : NaN;
+    }
+
+    // Initialize totals and migrate any pending localStorage entries
+    function initTotals() {
+        document.querySelectorAll('.token-row').forEach(row => {
+            const id = row.getAttribute('data-id');
+            const tokenText = (row.querySelector('.row-token-display') || {}).textContent || '';
+            const base = parseNumber(tokenText) || 0;
+            let addSum = 0;
+            if (id) {
+                addSum = parseFloat(localStorage.getItem('addSum_' + id)) || 0;
+                // migrate pending addSum keyed by token value (if any)
+                const pendingKey = 'addSum_token_' + tokenText;
+                const pending = parseFloat(localStorage.getItem(pendingKey)) || 0;
+                if (pending) {
+                    addSum += pending;
+                    localStorage.setItem('addSum_' + id, String(addSum));
+                    localStorage.removeItem(pendingKey);
+                }
+            } else {
+                // try token-keyed pending sum for rows without id
+                const pendingKey = 'addSum_token_' + tokenText;
+                addSum = parseFloat(localStorage.getItem(pendingKey)) || 0;
+            }
+            // Load Return sum
+            let returnSum = 0;
+            if (id) {
+                returnSum = parseFloat(localStorage.getItem('returnSum_' + id)) || 0;
+            }
+            // Total = Token Value (base) + Add sum + Return sum
+            const total = base + addSum + returnSum;
+            const totalEl = row.querySelector('.token-count');
+            if (totalEl) totalEl.textContent = Number.isInteger(total) ? String(total) : total.toFixed(2);
+            // Display Return sum column
+            const returnEl = row.querySelector('.detect-count');
+            if (returnEl) {
+                returnEl.textContent = Number.isInteger(returnSum) ? String(returnSum) : returnSum.toFixed(2);
+            }
+        });
+    }
+
+    // Attach handlers once on load
+    attachPerRowHandlers();
+    initTotals();
+</script>
+</body>
+</html>
